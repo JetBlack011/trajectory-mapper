@@ -91,12 +91,9 @@ function updateCurves() {
             mat = [[2, 1], [2, 7]];
     
             dx = [k[0].x + 2 * k[1].x, 8 * k[1].x + k[2].x];
-            dy = [k[0].y + 2 * k[1].y, 8 * k[1].y + k[2].y];
-    
-            p1x = math.multiply(math.inv(mat), dx);
-            p1y = math.multiply(math.inv(mat), dy);
+            dy = [k[0].y + 2 * k[1].y, 8 * k[1].y + k[2].y]; 
         } else {
-            var a, b, c;
+            //var a, b, c;
 
             dx = [k[0].x + 2 * k[1].x];
             dy = [k[0].y + 2 * k[1].y];
@@ -106,9 +103,10 @@ function updateCurves() {
                 dy.push(4 * k[i].y + 2 * k[i + 1].y);
             }
 
-            dx.push(8 * k[1].x + k[2].x);
-            dy.push(8 * k[1].y + k[2].y);
-
+            dx.push(8 * k[n - 1].x + k[n].x);
+            dy.push(8 * k[n - 1].y + k[n].y);
+ 
+            /*
             p1x = dx;
             p1y = dy;
 
@@ -128,8 +126,8 @@ function updateCurves() {
 
             solveTridiagonal(n, a, b, c, p1x);
             solveTridiagonal(n, a, b, c, p1y);
+            */
 
-            /*
             mat = Array(n);
             
             for (var i = 0; i < n; i++) {
@@ -144,11 +142,15 @@ function updateCurves() {
             mat[0][0] = 2;
             mat[0][1] = 1;
             mat[n - 1][n - 2] = 2;
-            mat[n - 1][n - 1] = 7;
-
-            */
+            mat[n - 1][n - 1] = 7; 
         }
-    
+
+        p1x = math.multiply(math.inv(mat), dx);
+        p1y = math.multiply(math.inv(mat), dy);
+
+        console.log(mat); 
+        
+
         p2 = [];
 
         for (var i = 0; i < n; i++) {
@@ -193,17 +195,14 @@ function setup() {
     pointAdd();
     pointAdd();
     pointAdd();
-    pointAdd();
     k[0].x = 100;
     k[0].y = 100;
     k[1].x = 200;
-    k[1].y = 100;
+    k[1].y = 150;
     k[2].x = 300;
-    k[2].y = 200;
-    k[2].x = 400;
     k[2].y = 50;
-    k[2].x = 400;
-    k[2].y = 50;
+    k[3].x = 400;
+    k[3].y = 100;
 }
 
 function draw() {
