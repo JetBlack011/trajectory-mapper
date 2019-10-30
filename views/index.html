@@ -1,19 +1,27 @@
 <!DOCTYPE html>
 <html lang="">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trajectory Mapper</title>
-    <link rel="stylesheet" href="public/css/index.css">
-    <style> body {padding: 0; margin: 0;} </style>
-    <script src="public/js/p5.js"></script>
-    <script src="public/js/math.js"></script>
-    <script src="public/js/trajectory.js"></script>
-    <script src="public/js/sketch.js"></script>
-  </head>
-  <body>
-    <div id="points">
-      <h3>Waypoints</h4>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trajectory Mapper</title>
+  <link rel="stylesheet" href="public/css/index.css">
+  <style>
+    body {
+      padding: 0;
+      margin: 0;
+    }
+  </style>
+  <script src="public/js/p5.js"></script>
+  <script src="public/js/math.js"></script>
+  <script src="public/js/drag.js"></script>
+  <script src="public/js/trajectory.js"></script>
+  <script src="public/js/sketch.js"></script>
+</head>
+
+<body>
+  <div id="points">
+    <h3>Waypoints</h4>
       <table id="tbl-points">
         <thead>
           <th>#</th>
@@ -28,8 +36,9 @@
       </table>
       <button id="btn-add" onclick="pointAdd();">Add</button>
       <button id="btn-remove" onclick="pointRemove();">Remove</button>
-      <br/>
+      <br />
       <button id="btn-generate" onclick="">Generate Profile</button>
-    </div>
-  </body>
+  </div>
+</body>
+
 </html>
