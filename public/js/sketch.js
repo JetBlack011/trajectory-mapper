@@ -8,7 +8,7 @@ var active = false;
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
-    //bg = loadImage('assets/field.png');
+    bg = loadImage('assets/field.png');
     trajectory = new Trajectory();
 }
 
