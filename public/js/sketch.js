@@ -1,6 +1,6 @@
 /// <reference path="./p5.global-mode.d.ts" />
 
-var bg, multiplier = 2,
+var bg, fieldScale = .5,
     screenHeight = 1298,
     screenWidth = 638;
 var btnAdd, btnRemove, radius = 5;
@@ -15,12 +15,23 @@ function setup() {
     divPoint.style.top = 0;
     divPoint.style.right = 0;
     bg = loadImage('public/assets/field1298x638.jpeg');
-    trajectory = new Trajectory();
+    trajectory = new Trajectory(fieldScale);
 }
 
 function draw() {
     background(bg);
     trajectory.draw();
+}
+
+function generateProfile() {
+    if (trajectory.points.length > 1) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", '/profile', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify({
+            trajectory: trajectory
+        }));
+    }
 }
 
 function pointAdd() {
@@ -70,8 +81,8 @@ function tableUpdate() {
         for (var i = 0; i < trajectory.points.length; i++) {
             tr = tbody.rows[i];
             tr.cells[0].innerHTML = i;
-            tr.cells[1].firstChild.value = Math.ceil(trajectory.points[i].x / multiplier);
-            tr.cells[2].firstChild.value = Math.ceil(trajectory.points[i].y / multiplier);
+            tr.cells[1].firstChild.value = trajectory.points[i].x * fieldScale;
+            tr.cells[2].firstChild.value = trajectory.points[i].y * fieldScale;
         }
     } else {
         while (tbody.hasChildNodes()) {
@@ -93,9 +104,10 @@ function tableSync() {
         tr = tbody.rows[r];
         waypoint = trajectory.points[r];
 
-        waypoint.x = parseInt(tr.cells[1].firstChild.value) * multiplier || 0;
-        waypoint.y = parseInt(tr.cells[2].firstChild.value) * multiplier || 0;
+        waypoint.x = parseInt(tr.cells[1].firstChild.value) / fieldScale || 0;
+        waypoint.y = parseInt(tr.cells[2].firstChild.value) / fieldScale || 0;
     }
+    trajectory.update();
 }
 
 function mousePressed() {
@@ -146,7 +158,7 @@ function mouseDragged() {
         } else {
             for (var i = 0; i < trajectory.curves.length; i++) {
                 if (mouseX > trajectory.curves[i].p0.x && mouseX < trajectory.curves[i].p3.x) {
-                    trajectory.curves[i].t = 1 - (mouseX - trajectory.curves[i].p0.x) / (trajectory.curves[i].p3.x - trajectory.curves[i].p0.x);
+                    trajectory.curves[i].t = (mouseX - trajectory.curves[i].p0.x) / (trajectory.curves[i].p3.x - trajectory.curves[i].p0.x);
                 } else {
                     trajectory.curves[i].t = null;
                 }

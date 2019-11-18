@@ -35,13 +35,52 @@ class Waypoint extends Point {
     }
 }
 
-class Curve {
-    constructor() {
+class ExtensibleFunction extends Function {
+    constructor(f) {
+        return Object.setPrototypeOf(f, new.target.prototype);
+    }
+}
+
+class Curve extends ExtensibleFunction {
+    constructor(scale) {
+        super(t => {
+            // B(t) = (1 - t)^3 * p0 + 3t(1 - t)^2 * p1 + 3t^2(1 - t) * p2 + x^3 * p3
+            return new Point((Math.pow((1 - t), 3) * this.p0.x +
+                   3 * t * Math.pow((1 - t), 2) * this.p1.x +
+                   3 * Math.pow(t, 2) * (1 - t) * this.p2.x +
+                   Math.pow(t, 3) * this.p3.x) * this.scale,
+                   (Math.pow((1 - t), 3) * this.p0.y +
+                   3 * t * Math.pow((1 - t), 2) * this.p1.y +
+                   3 * Math.pow(t, 2) * (1 - t) * this.p2.y +
+                   Math.pow(t, 3) * this.p3.y) * this.scale);
+        })
+        this.velocity = t => {
+            // B'(t) = -3(1 - t)^2 * p0 + (3 - 12t + 9t^2) * p1 + (6t - 9t^2) * p2 + 3t^2 * p3
+            return Math.sqrt(Math.pow((-3 * Math.pow((1 - t), 2) * this.p0.x +
+                   (3 - 12 * t + 9 * Math.pow(t, 2)) * this.p1.x +
+                   (6 * t - 9 * Math.pow(t, 2)) * this.p2.x +
+                   3 * Math.pow(t, 2) * this.p3.x) * this.scale, 2),
+                   Math.pow((-3 * Math.pow((1 - t), 2) * this.p0.y +
+                   (3 - 12 * t + 9 * Math.pow(t, 2)) * this.p1.y +
+                   (6 * t - 9 * Math.pow(t, 2)) * this.p2.y +
+                   3 * Math.pow(t, 2) * this.p3.y) * this.scale), 2);
+        }
+        this.acceleration = t => {
+            // B''(t) = 6(1 - t) * p0 + (18t - 12) * p1 + (6 - 18t) * p2 + 6t * p3
+            return Math.sqrt(Math.pow((6 * (1 - t) * this.p0.x +
+                   (18 * t - 12) * this.p1.x +
+                   (6 - 18 * t) * this.p2.x +
+                   6 * t * this.p3.x) * this.scale, 2),
+                   Math.pow((6 * (1 - t) * this.p0.y +
+                   (18 * t - 12) * this.p1.y +
+                   (6 - 18 * t) * this.p2.y +
+                   6 * t * this.p3.y) * this.scale, 2));
+        }
         this.p0 = null;
         this.p1 = null;
         this.p2 = null;
         this.p3 = null;
-        this.t = 0;
+        this.scale = scale
     }
 
     draw() {
@@ -51,25 +90,23 @@ class Curve {
         bezier(this.p0.x, this.p0.y, this.p1.x, this.p1.y, this.p2.x, this.p2.y, this.p3.x, this.p3.y);
 
         if (this.t) {
-            let x = bezierPoint(this.p3.x, this.p2.x, this.p1.x, this.p0.x, this.t);
-            let y = bezierPoint(this.p3.y, this.p2.y, this.p1.y, this.p0.y, this.t);
-            let tx = bezierTangent(this.p3.x, this.p2.x, this.p1.x, this.p0.x, this.t);
-            let ty = bezierTangent(this.p3.y, this.p2.y, this.p1.y, this.p0.y, this.t);
-            let a = atan2(ty, tx);
-            a += PI;
+            let p = this(this.t);
+            let m = this.velocity(this.t);
+            let y = x => m * (p.x - x) + p.y
             stroke('red');
             strokeWeight(2);
-            line(x, y, cos(a) * 50 + x, sin(a) * 50 + y);
+            line(p.x, p.y, p.x + 5, y(p.x + 5));
             stroke('white');
-            circle(x, y, 5);
+            circle(p.x, p.y, 5);
         }
     }
 }
 
 class Trajectory {
-    constructor() {
+    constructor(scale) {
         this.points = [];
         this.curves = [];
+        this.scale = scale;
     }
 
     add(x, y) {
@@ -90,21 +127,26 @@ class Trajectory {
     }
 
     update() {
+        var mat, dx, dy, p1x, p1y, p2, p2x, p2y;
         var n = this.points.length - 1;
         if (n > 0) {
             this.curves = Array(n);
 
             for (var i = 0; i < n; i++) {
-                this.curves[i] = new Curve();
+                this.curves[i] = new Curve(this.scale);
             }
 
             if (n == 1) {
+                p1x = (2 * this.points[0].x + this.points[1].x) / 3;
+                p1y = (2 * this.points[0].y + this.points[1].y) / 3;
+                p2x = 2 * p1x - this.points[0].x;
+                p2y = 2 * p1y - this.points[0].y;
+
                 this.curves[0].p0 = this.points[0];
-                this.curves[0].p1 = this.points[0];
-                this.curves[0].p2 = this.points[1];
+                this.curves[0].p1 = new Point(p1x, p1y);
+                this.curves[0].p2 = new Point(p2x, p2y);
                 this.curves[0].p3 = this.points[1];
             } else if (n > 1) {
-                var mat, dx, dy, p1x, p1y, p2;
                 if (n == 2) {
                     mat = [
                         [2, 1],
@@ -171,6 +213,19 @@ class Trajectory {
 
         for (var i = 0; i < this.curves.length; i++) {
             this.curves[i].draw();
+        }
+    }
+}
+
+class Profile {
+    constructor(trajectory) {
+        this.trajectory = trajectory;
+    }
+
+    generate() {
+        var s = 
+        for (var t = 0; ; t += 10) {
+
         }
     }
 }
