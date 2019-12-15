@@ -5,6 +5,21 @@ class Point {
     }
 }
 
+class Vector {
+    constructor(magnitude, theta) {
+        this.magnitude = magnitude;
+        this.theta = theta;
+    }
+
+    x() {
+        return this.magnitude * Math.cos(this.theta);
+    }
+
+    y() {
+        return this.magnitude * Math.sin(this.theta);
+    }
+}
+
 class Waypoint extends Point {
     constructor(i, x, y) {
         super(x, y);
@@ -56,25 +71,29 @@ class Curve extends ExtensibleFunction {
         })
         this.velocity = t => {
             // B'(t) = -3(1 - t)^2 * p0 + (3 - 12t + 9t^2) * p1 + (6t - 9t^2) * p2 + 3t^2 * p3
-            return Math.sqrt(Math.pow((-3 * Math.pow((1 - t), 2) * this.p0.x +
-                   (3 - 12 * t + 9 * Math.pow(t, 2)) * this.p1.x +
-                   (6 * t - 9 * Math.pow(t, 2)) * this.p2.x +
-                   3 * Math.pow(t, 2) * this.p3.x) * this.scale, 2),
-                   Math.pow((-3 * Math.pow((1 - t), 2) * this.p0.y +
-                   (3 - 12 * t + 9 * Math.pow(t, 2)) * this.p1.y +
-                   (6 * t - 9 * Math.pow(t, 2)) * this.p2.y +
-                   3 * Math.pow(t, 2) * this.p3.y) * this.scale), 2);
+            let vx = (-3 * Math.pow((1 - t), 2) * this.p0.x +
+                     (3 - 12 * t + 9 * Math.pow(t, 2)) * this.p1.x +
+                     (6 * t - 9 * Math.pow(t, 2)) * this.p2.x +
+                     3 * Math.pow(t, 2) * this.p3.x) * this.scale;
+            let vy = (-3 * Math.pow((1 - t), 2) * this.p0.y +
+                     (3 - 12 * t + 9 * Math.pow(t, 2)) * this.p1.y +
+                     (6 * t - 9 * Math.pow(t, 2)) * this.p2.y +
+                     3 * Math.pow(t, 2) * this.p3.y) * this.scale;
+            let theta = atan(vy / vx);
+            return new Vector(Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2), theta));
         }
         this.acceleration = t => {
             // B''(t) = 6(1 - t) * p0 + (18t - 12) * p1 + (6 - 18t) * p2 + 6t * p3
-            return Math.sqrt(Math.pow((6 * (1 - t) * this.p0.x +
-                   (18 * t - 12) * this.p1.x +
-                   (6 - 18 * t) * this.p2.x +
-                   6 * t * this.p3.x) * this.scale, 2),
-                   Math.pow((6 * (1 - t) * this.p0.y +
-                   (18 * t - 12) * this.p1.y +
-                   (6 - 18 * t) * this.p2.y +
-                   6 * t * this.p3.y) * this.scale, 2));
+            let ax = (6 * (1 - t) * this.p0.x +
+                     (18 * t - 12) * this.p1.x +
+                     (6 - 18 * t) * this.p2.x +
+                     6 * t * this.p3.x) * this.scale;
+            let ay = (6 * (1 - t) * this.p0.y +
+                     (18 * t - 12) * this.p1.y +
+                     (6 - 18 * t) * this.p2.y +
+                     6 * t * this.p3.y) * this.scale
+            let theta = atan(vy / vx);
+            return new Vector(Math.sqrt(Math.pow(ax, 2), Math.pow(ay, 2)), theta);
         }
         this.p0 = null;
         this.p1 = null;
@@ -88,17 +107,6 @@ class Curve extends ExtensibleFunction {
         strokeWeight(1);
         stroke('blue');
         bezier(this.p0.x, this.p0.y, this.p1.x, this.p1.y, this.p2.x, this.p2.y, this.p3.x, this.p3.y);
-
-        if (this.t) {
-            let p = this(this.t);
-            let m = this.velocity(this.t);
-            let y = x => m * (p.x - x) + p.y
-            stroke('red');
-            strokeWeight(2);
-            line(p.x, p.y, p.x + 5, y(p.x + 5));
-            stroke('white');
-            circle(p.x, p.y, 5);
-        }
     }
 }
 
@@ -120,7 +128,7 @@ class Trajectory {
             this.points.splice(i, 1);
             this.curves.splice(i - 1, 1);
         }
-        for (var i = 0; i < this.points.length; i++) {
+        for (var i = 0; i < this.points.length; ++i) {
             this.points[i].i = i;
         }
         this.update();
@@ -132,7 +140,7 @@ class Trajectory {
         if (n > 0) {
             this.curves = Array(n);
 
-            for (var i = 0; i < n; i++) {
+            for (var i = 0; i < n; ++i) {
                 this.curves[i] = new Curve(this.scale);
             }
 
@@ -159,7 +167,7 @@ class Trajectory {
                     dx = [this.points[0].x + 2 * this.points[1].x];
                     dy = [this.points[0].y + 2 * this.points[1].y];
 
-                    for (var i = 1; i < n - 1; i++) {
+                    for (var i = 1; i < n - 1; ++i) {
                         dx.push(4 * this.points[i].x + 2 * this.points[i + 1].x);
                         dy.push(4 * this.points[i].y + 2 * this.points[i + 1].y);
                     }
@@ -169,10 +177,10 @@ class Trajectory {
 
                     mat = Array(n);
 
-                    for (var i = 0; i < n; i++) {
+                    for (var i = 0; i < n; ++i) {
                         mat[i] = Array(n).fill(0);
                     }
-                    for (var i = 1; i < n - 1; i++) {
+                    for (var i = 1; i < n - 1; ++i) {
                         mat[i][i - 1] = 1;
                         mat[i][i] = 4;
                         mat[i][i + 1] = 1;
@@ -189,14 +197,14 @@ class Trajectory {
 
                 p2 = [];
 
-                for (var i = 0; i < n; i++) {
+                for (var i = 0; i < n; ++i) {
                     p2.push(new Point(2 * this.points[i + 1].x - p1x[i + 1], 2 * this.points[i + 1].y - p1y[i + 1]))
                 }
 
                 p2[n - 1].x = 0.5 * (this.points[n].x + p1x[n - 1]);
                 p2[n - 1].y = 0.5 * (this.points[n].y + p1y[n - 1]);
 
-                for (var i = 0; i < n; i++) {
+                for (var i = 0; i < n; ++i) {
                     this.curves[i].p0 = this.points[i];
                     this.curves[i].p1 = new Point(p1x[i], p1y[i]);
                     this.curves[i].p2 = p2[i];
@@ -207,11 +215,11 @@ class Trajectory {
     }
 
     draw() {
-        for (var i = 0; i < this.points.length; i++) {
+        for (var i = 0; i < this.points.length; ++i) {
             this.points[i].draw();
         }
 
-        for (var i = 0; i < this.curves.length; i++) {
+        for (var i = 0; i < this.curves.length; ++i) {
             this.curves[i].draw();
         }
     }
@@ -221,11 +229,6 @@ class Profile {
     constructor(trajectory) {
         this.trajectory = trajectory;
     }
-
-    generate() {
-        var s = 
-        for (var t = 0; ; t += 10) {
-
-        }
-    }
+    
+    
 }
