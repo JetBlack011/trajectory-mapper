@@ -1,4 +1,4 @@
-// <reference path="./p5.global-mode.d.ts" />
+/// <reference path="./p5.global-mode.d.ts" />
 
 var bg, fieldScale = .5,
     screenHeight = 1298,
@@ -16,15 +16,6 @@ function setup() {
     divPoint.style.right = 0;
     bg = loadImage('public/assets/field1298x638.jpeg');
     trajectory = new Trajectory(fieldScale);
-    trajectory.add(100, 100);
-    trajectory.update();
-    tableUpdate();
-    trajectory.add(200, 200);
-    trajectory.update();
-    tableUpdate();
-    trajectory.add(300, 100);
-    trajectory.update();
-    tableUpdate();
 }
 
 function draw() {
@@ -162,6 +153,14 @@ function mouseDragged() {
                     waypoint.y = mouseY;
                     trajectory.update();
                     break;
+                }
+            }
+        } else {
+            for (var i = 0; i < trajectory.curves.length; i++) {
+                if (mouseX > trajectory.curves[i].p0.x && mouseX < trajectory.curves[i].p3.x) {
+                    trajectory.curves[i].t = (mouseX - trajectory.curves[i].p0.x) / (trajectory.curves[i].p3.x - trajectory.curves[i].p0.x);
+                } else {
+                    trajectory.curves[i].t = null;
                 }
             }
         }
