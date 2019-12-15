@@ -5,3 +5,5 @@ p5.global-mode.d.ts
 *.swo
 *.swp
 node_modules/
+public/js/trajectory2.js
+.eslintrc.js
