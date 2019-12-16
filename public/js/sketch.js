@@ -23,11 +23,11 @@ function setup() {
     divPoint.style.right = 0;
     bg = loadImage('public/assets/field1298x638.jpeg');
     trajectory = new Trajectory(fieldScale);
-    trajectory.add(100, 100);
-    tableUpdate();
     trajectory.add(200, 200);
     tableUpdate();
-    trajectory.add(300, 100);
+    trajectory.add(400, 400);
+    tableUpdate();
+    trajectory.add(600, 200);
     tableUpdate();
     trajectory.update();
     profile = new MotionProfile(trajectory, maxVelocity, maxAcceleration, maxJerk);
