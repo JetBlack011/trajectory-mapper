@@ -7,22 +7,6 @@ class Point {
     }
 }
 
-class Vector {
-    constructor(magnitude, theta) {
-        this.magnitude = magnitude;
-        this.theta = theta;
-        this.x = this.magnitude * Math.cos(this.theta);
-        this.y = this.magnitude * Math.sin(this.theta);
-    }
-
-    draw() {
-        stroke(255, 102, 0);
-        line(screenHeight / 2, screenWidth / 2, cos(this.theta) * 30 + this.x, sin(this.theta) * 30 + this.y);
-        stroke(0);
-        ellipse(screenHeight / 2, screenWidth / 2, 5, 5);
-    }
-}
-
 class Waypoint extends Point {
     constructor(i, x, y) {
         super(x, y);
@@ -64,6 +48,17 @@ class Curve {
             let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale;
             let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale;
             return Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2));
+        }
+        this.dd = t => {
+            let ax = (6 * (1 - t) * this.p0.x +
+                     (18 * t - 12) * this.p1.x +
+                     (6 - 18 * t) * this.p2.x +
+                     6 * t * this.p3.x) * this.scale;
+            let ay = (6 * (1 - t) * this.p0.y +
+                     (18 * t - 12) * this.p1.y +
+                     (6 - 18 * t) * this.p2.y +
+                     6 * t * this.p3.y) * this.scale
+            return Math.sqrt(Math.pow(ax, 2), Math.pow(ay, 2));
         }
         this.p0 = null;
         this.p1 = null;
@@ -210,6 +205,7 @@ class MotionProfile {
         this.aMax = aMax;
         this.vMax = vMax;
         this._vMax = vMax;
+        this.uiPrev = 0;
         this.update();
     }
 
@@ -231,7 +227,7 @@ class MotionProfile {
                 (3 * Math.pow(this.jMax, 2))- vs1 * (this.aMax / this.jMax +
                 vs1 / this.aMax) + Math.pow((Math.pow(this.aMax, 2) /
                 this.jMax + vs1 / this.aMax), 2) / (2. * this.aMax);
-        this._vMax = (-b + Math.sqrt(Math.pow(b, 2) - 4 * a * c)) / (a * 2);
+        this._vMax = (-b + Math.sqrt(Math.pow(b, 2) - 4 * a * c)) / (2 * a);
 
         if (this.vMax <= this._vMax) {
             this._vMax = this.vMax;
@@ -262,15 +258,20 @@ class MotionProfile {
         this.v[i] = this.v[i - 1] + this.aMax * this.t[i] - this.jMax *
                     Math.pow(this.t[i], 2) / 2;
 
+        /*
         if (Math.abs(this.v[i] - this._vMax) > (1e-05 + 1e-08 * Math.abs(this._vMax))) {
             console.error("Max velocity not reached!");
             return;
         }
+        */
 
         this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) /
                     2 - this.jMax * Math.pow(this.t[i], 3) / 6;
         
         // Section 3: Coast
+        i = 3;
+        this.s[i] = 0;
+        this.t[i] = 0;
 
         // Section 4: Minimum jerk, part 2
         i = 4;
@@ -282,21 +283,24 @@ class MotionProfile {
         i = 5;
         dv = this.v[i - 1] - vsf;
         this.t[i] = dv / this.aMax;
-        this.v[i] = this.v[i - 1] - this.aMax * Math.pow(this.t[i], 2) / 2;
+        this.v[i] = this.v[i - 1] - this.aMax * this.t[i];
+        this.s[i] = this.v[i - 1] * this.t[i] - this.aMax * Math.pow(this.t[i], 2) / 2;
 
         // Section 6: Maximum jerk, part 2
         i = 6;
         this.t[i] = tsf;
         this.v[i] = this.v[i - 1] - this.jMax * Math.pow(tsf, 2) / 2;
 
+        /*
         if (Math.abs(this.v[i]) > 1e-05) {
             console.error(`Final velocity ${this.v[i]} is not zero!`)
             return;
         }
+        */
 
         this.s[i] = ssf;
 
-        let sSum = math.sum(s);
+        let sSum = math.sum(this.s);
         if (sSum < this.totalLength) {
             i = 3;
             this.s[i] = this.totalLength - sSum;
@@ -304,14 +308,14 @@ class MotionProfile {
             this.t[i] = this.s[i] / this._vMax;
         }
 
-        for (let i = 0; i < t.length; ++i) {
+        for (let i = 0; i < this.t.length; ++i) {
             if (this.t[i] < 0) {
                 console.error("Kinematically impossible path!");
                 return;
             }
         }
         
-        this.totalTime = math.sum(t);
+        this.totalTime = math.sum(this.t);
     }
 
     getInterpolationParameter(i, s, ui, tol) {
@@ -332,57 +336,84 @@ class MotionProfile {
     }
 
     timeTo(i) {
-        return math.sum(this.t.slice(2))
+        return math.sum(this.t.slice(i));
+    }
+
+    distanceTo(i) {
+        return this.trajectory.curves.reduce((a, b) => a + b.curveLength, 0);
     }
 
     calcTrajPoint(t) {
+        let i;
         let dt;
         let s;
         let v;
         let a;
         if (t <= this.t[0]) {
+            i = 0;
             v = this.jMax * Math.pow(t, 2) / 2;
             s = this.jMax * Math.pow(t, 3) / 6;
             a = this.jMax * t;
         } else if (t <= this.timeTo(2)) {
+            i = 1;
             dt = t - this.t[0];
             v = this.v[0] + this.aMax * dt;
             s = this.s[0] + this.v[0] * dt + this.aMax * Math.pow(dt, 2) / 2;
             a = this.aMax;
         } else if (t <= this.timeTo(3)) {
+            i = 2;
             dt = t - this.timeTo(2);
             v = this.v[1] + this.aMax * dt - this.jMax * Math.pow(dt, 2) / 2;
             s = this.timeTo(2) + this.v[1] * dt + this.aMax * Math.pow(dt, 2) /
                 2 - this.jMax * Math.pow(dt, 3) / 6;
         } else if (t <= this.timeTo(4)) {
+            i = 3;
             dt = t - this.timeTo(3);
             v = this.v[3];
             s = this.timeTo(3) + this.v[3] * dt;
             a = 0;
         } else if (t <= this.timeTo(5)) {
+            i = 4;
             dt = t - this.timeTo(4);
             v = this.v[3] - this.jMax * Math.pow(dt, 2) / 2;
             s = this.timeTo(4) + this.v[3] * dt - this.jMax * dt;
             a = -this.jMax * dt;
         } else if (t <= this.timeTo(6)) {
+            i = 5;
             dt = t - this.timeTo(5);
             v = this.v[4] - this.aMax * dt;
             s = this.timeTo(5) + this.v[4] * dt - this.aMax * Math.pow(dt, 2) / 2
         } else if (time < this.timeTo(7)) {
+            i = 6;
             dt = t - this.timeTo(6);
             v = this.v[5] - this.aMax * dt + this.jMax * Math.pow(dt, 2) / 2;
             s = this.timeTo(6) + this.v[5] * dt - this.aMax * Math.pow(dt, 2) /
                 2 + this.jMax * Math.pow(dt, 3) / 6;
             a = -this.aMax + this.jMax * dt;
         } else {
+            i = 7;
             v = 0;
             s = this.trajectory.length;
             a = 0;
         }
-        i = max()
+        
+        /*
+        let ui;
+        if (i == this.trajectory.curves.length) {
+            --i;
+            ui = 1;
+        } else {
+            ui = this.getInterpolationParameter(i, this.distanceTo(i), this.uiPrev)
+        }
+
+        let iprime = i;
+        let d = this.trajectory.curves[i].d(ui);
+        let dd = this.trajectory.curves[i].d(ui);
+        let su = 
+        */
     }
     
     update() {
-        
+        this.velocityProfile();
     }
 }

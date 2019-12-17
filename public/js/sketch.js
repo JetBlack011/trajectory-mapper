@@ -1,7 +1,7 @@
 /* eslint-disable no-redeclare */
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-undef */
-/// <reference path="./p5.global-mode.d.ts" />
+// <reference path="./p5.global-mode.d.ts" />
 
 var bg, fieldScale = .5,
     screenHeight   = 1298,
@@ -23,11 +23,9 @@ function setup() {
     divPoint.style.right = 0;
     bg = loadImage('public/assets/field1298x638.jpeg');
     trajectory = new Trajectory(fieldScale);
-    trajectory.add(200, 200);
+    trajectory.add(0, 0);
     tableUpdate();
-    trajectory.add(400, 400);
-    tableUpdate();
-    trajectory.add(600, 200);
+    trajectory.add(1000, 0);
     tableUpdate();
     trajectory.update();
     profile = new MotionProfile(trajectory, maxVelocity, maxAcceleration, maxJerk);
