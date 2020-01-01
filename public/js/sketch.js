@@ -43,11 +43,6 @@ function setup() {
 
     // Trajectory and motion profile instantiation
     trajectory = new Trajectory(fieldScale);
-    trajectory.add(0, 200);
-    tableUpdate();
-    trajectory.add(200, 200);
-    tableUpdate();
-    trajectory.update();
     profile = new MotionProfile(trajectory, wheelRadius, maxVelocity, maxAcceleration, maxJerk);
     profile.show = false;
 }
@@ -97,6 +92,7 @@ function mouseDragged() {
             for (let i = 0; i < trajectory.points.length; ++i) {
                 let waypoint = trajectory.points[i];
                 if (waypoint.active) {
+                    profile.show = false;
                     waypoint.x = mouseX;
                     waypoint.y = mouseY;
                     update();

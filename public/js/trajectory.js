@@ -234,6 +234,7 @@ class MotionProfile {
         this._i = 0;
         this.interval = 100;
         this.show = false;
+        this.drawAngular = true;
         this.update();
     }
 
@@ -360,115 +361,127 @@ class MotionProfile {
         };
     }
 
+    showLinear() {
+        this.show = true;
+        this.drawAngular = false;
+    }
+
+    showAngular() {
+        this.show = true;
+        this.drawAngular = true;
+    }
+
     update(vMax, aMax, jMax) {
-        this.vMax = vMax * 12 || this.vMax;
-        this.aMax = aMax * 12 || this.aMax;
-        this.jMax = jMax * 12 || this.jMax;
+        if (this.trajectory.points.length > 1) {
+            this.vMax = vMax * 12 || this.vMax;
+            this.aMax = aMax * 12 || this.aMax;
+            this.jMax = jMax * 12 || this.jMax;
 
-        let totalLength = this.trajectory.length;
+            let totalLength = this.trajectory.length;
 
-        this._vMax = this.vMax;
-
-        let ts = this.aMax / this.jMax;
-        let vs = this.jMax * Math.pow(ts, 2) / 2;
-        let ss = this.jMax * Math.pow(ts, 3) / 6;
-        /*
-        let a = 1 / this.aMax;
-        let b = 3 * this.aMax / (2 * this.jMax) + vs / this.aMax -
-                (Math.pow(this.aMax, 2) / this.jMax + vs) / this.aMax;
-        let c = 2 * ss - totalLength - 7 * Math.pow(this.aMax, 3) /
-                (3 * Math.pow(this.jMax, 2)) - vs * (this.aMax / this.jMax +
-                vs / this.aMax) + Math.pow((Math.pow(this.aMax, 2) /
-                this.jMax + vs / this.aMax), 2) / (2 * this.aMax);
-        this._vMax = (-b + Math.sqrt(Math.pow(b, 2) - 4 * a * c)) / (2 * a);
-        */
-
-        this._vMax = Math.max((Math.sqrt(this.aMax * Math.pow(this.jMax, 2) *
-                     (4 * Math.pow(this.jMax, 2) * totalLength - 11 *
-                     Math.pow(this.aMax, 3))) + Math.pow(this.aMax, 2) *
-                     this.jMax) / (2 * Math.pow(this.jMax, 2)), (Math.pow(this.aMax, 2) *
-                     this.jMax - Math.sqrt(this.aMax * Math.pow(this.jMax, 2) *
-                     (4 * Math.pow(this.jMax, 2) * totalLength - 11 *
-                     Math.pow(this.aMax, 3)))) / (2 * Math.pow(this.jMax, 2))) - 10;
-        if (this.vMax <= this._vMax) {
             this._vMax = this.vMax;
-        }
 
-        this.t = Array(7);
-        this.v = Array(7);
-        this.s = Array(7);
+            let ts = this.aMax / this.jMax;
+            let vs = this.jMax * Math.pow(ts, 2) / 2;
+            let ss = this.jMax * Math.pow(ts, 3) / 6;
+            /*
+            let a = 1 / this.aMax;
+            let b = 3 * this.aMax / (2 * this.jMax) + vs / this.aMax -
+                    (Math.pow(this.aMax, 2) / this.jMax + vs) / this.aMax;
+            let c = 2 * ss - totalLength - 7 * Math.pow(this.aMax, 3) /
+                    (3 * Math.pow(this.jMax, 2)) - vs * (this.aMax / this.jMax +
+                    vs / this.aMax) + Math.pow((Math.pow(this.aMax, 2) /
+                    this.jMax + vs / this.aMax), 2) / (2 * this.aMax);
+            this._vMax = (-b + Math.sqrt(Math.pow(b, 2) - 4 * a * c)) / (2 * a);
+            */
 
-        // Section 0: Maximal jerk, part 1
-        let i = 0;
-        this.t[0] = ts;
-        this.v[0] = vs;
-        this.s[0] = ss;
-
-        // Section 1: Maximal acceleration
-        i = 1;
-        let dv = this._vMax - Math.pow(this.aMax, 2) / (this.jMax * 2) - this.v[i - 1];
-        this.t[i] = dv / this.aMax;
-        this.v[i] = this.v[i - 1] + this.aMax * this.t[i];
-        this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) / 2;
-
-        // Section 2: Minimal jerk, part 1
-        i = 2;
-        this.t[i] = this.aMax / this.jMax;
-        this.v[i] = this.v[i - 1] + this.aMax * this.t[i] - this.jMax *
-                    Math.pow(this.t[i], 2) / 2;
-
-        if (!math.isClose(this.v[i], this._vMax)) {
-            return console.error("Max velocity not reached!");
-        }
-
-        this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) /
-                    2 - this.jMax * Math.pow(this.t[i], 3) / 6;
-        
-        // Section 3: Coast
-        i = 3;
-        this.s[i] = 0;
-        this.t[i] = 0;
-        this.v[i] = 0;
-
-        // Section 4: Minimal jerk, part 2
-        i = 4;
-        this.t[i] = this.aMax / this.jMax;
-        this.v[i] = this._vMax - this.jMax * Math.pow(this.t[i], 2) / 2;
-        this.s[i] = this._vMax * this.t[i] - this.jMax * Math.pow(this.t[i], 3) / 6;
-
-        // Section 5: Minimal acceleration
-        i = 5;
-        dv = this.v[i - 1] - vs;
-        this.t[i] = dv / this.aMax;
-        this.v[i] = this.v[i - 1] - this.aMax * this.t[i];
-        this.s[i] = this.v[i - 1] * this.t[i] - this.aMax * Math.pow(this.t[i], 2) / 2;
-
-        // Section 6: Maximal jerk, part 2
-        i = 6;
-        this.t[i] = ts;
-        this.v[i] = this.v[i - 1] - this.jMax * Math.pow(ts, 2) / 2;
-
-        if (!math.isClose(this.v[i], 0)) {
-            return console.error(`Final velocity ${this.v[i]} is not zero!`);
-        }
-
-        this.s[i] = ss;
-
-        for (let i = 0; i < this.t.length; ++i) {
-            if (this.t[i] < 0) {
-                return console.error("Kinematically impossible path!");
+            this._vMax = Math.max((Math.sqrt(this.aMax * Math.pow(this.jMax, 2) *
+                        (4 * Math.pow(this.jMax, 2) * totalLength - 11 *
+                        Math.pow(this.aMax, 3))) + Math.pow(this.aMax, 2) *
+                        this.jMax) / (2 * Math.pow(this.jMax, 2)), (Math.pow(this.aMax, 2) *
+                        this.jMax - Math.sqrt(this.aMax * Math.pow(this.jMax, 2) *
+                        (4 * Math.pow(this.jMax, 2) * totalLength - 11 *
+                        Math.pow(this.aMax, 3)))) / (2 * Math.pow(this.jMax, 2))) - 10;
+            if (this.vMax <= this._vMax) {
+                this._vMax = this.vMax;
             }
-        }
 
-        let sSum = math.sum(this.s);
-        if (sSum < totalLength) {
+            this.t = Array(7);
+            this.v = Array(7);
+            this.s = Array(7);
+
+            // Section 0: Maximal jerk, part 1
+            let i = 0;
+            this.t[0] = ts;
+            this.v[0] = vs;
+            this.s[0] = ss;
+
+            // Section 1: Maximal acceleration
+            i = 1;
+            let dv = this._vMax - Math.pow(this.aMax, 2) / (this.jMax * 2) - this.v[i - 1];
+            this.t[i] = dv / this.aMax;
+            this.v[i] = this.v[i - 1] + this.aMax * this.t[i];
+            this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) / 2;
+
+            // Section 2: Minimal jerk, part 1
+            i = 2;
+            this.t[i] = this.aMax / this.jMax;
+            this.v[i] = this.v[i - 1] + this.aMax * this.t[i] - this.jMax *
+                        Math.pow(this.t[i], 2) / 2;
+
+            if (!math.isClose(this.v[i], this._vMax)) {
+                return console.error("Max velocity not reached!");
+            }
+
+            this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) /
+                        2 - this.jMax * Math.pow(this.t[i], 3) / 6;
+            
+            // Section 3: Coast
             i = 3;
-            this.s[i] = totalLength - sSum;
-            this.v[i] = this._vMax;
-            this.t[i] = this.s[i] / this._vMax;
+            this.s[i] = 0;
+            this.t[i] = 0;
+            this.v[i] = 0;
+
+            // Section 4: Minimal jerk, part 2
+            i = 4;
+            this.t[i] = this.aMax / this.jMax;
+            this.v[i] = this._vMax - this.jMax * Math.pow(this.t[i], 2) / 2;
+            this.s[i] = this._vMax * this.t[i] - this.jMax * Math.pow(this.t[i], 3) / 6;
+
+            // Section 5: Minimal acceleration
+            i = 5;
+            dv = this.v[i - 1] - vs;
+            this.t[i] = dv / this.aMax;
+            this.v[i] = this.v[i - 1] - this.aMax * this.t[i];
+            this.s[i] = this.v[i - 1] * this.t[i] - this.aMax * Math.pow(this.t[i], 2) / 2;
+
+            // Section 6: Maximal jerk, part 2
+            i = 6;
+            this.t[i] = ts;
+            this.v[i] = this.v[i - 1] - this.jMax * Math.pow(ts, 2) / 2;
+
+            if (!math.isClose(this.v[i], 0)) {
+                return console.error(`Final velocity ${this.v[i]} is not zero!`);
+            }
+
+            this.s[i] = ss;
+
+            for (let i = 0; i < this.t.length; ++i) {
+                if (this.t[i] < 0) {
+                    return console.error("Kinematically impossible path!");
+                }
+            }
+
+            let sSum = math.sum(this.s);
+            if (sSum < totalLength) {
+                i = 3;
+                this.s[i] = totalLength - sSum;
+                this.v[i] = this._vMax;
+                this.t[i] = this.s[i] / this._vMax;
+            }
+            
+            this.totalTime = math.sum(this.t);
         }
-        
-        this.totalTime = math.sum(this.t);
     }
 
     export() {
@@ -490,14 +503,17 @@ class MotionProfile {
 
     draw() {
         if (this.show) {
-        noStroke();
+            noStroke();
             for (let t = 0; t <= this.totalTime; t += this.totalTime / this.interval) {
                 if (t == this.totalTime) {
                     t -= .001;
                 }
                 let state = this.calcTrajPoint(t);
-                //fill(Math.abs(state.omega) / .3 * 255, 0, 0);
-                fill(state.v / this._vMax * 255, 0, 0);
+                if (this.drawAngular) {
+                    fill(0, Math.abs(state.omega) / .3 * 255, 0);
+                } else {
+                    fill(state.v / this._vMax * 255, 0, 0);
+                }
                 circle(state.x / this.scale, state.y / this.scale, 10);
             }
         }
