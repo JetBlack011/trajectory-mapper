@@ -62149,39 +62149,51 @@ function integrate (f, start, end, step) {
  * @param {Object} [scope]
  */
 integrate.transform = function (args, math, scope) {
-  // determine the variable name
   if (!args[1].isSymbolNode) {
     throw new Error('Second argument must be a symbol')
   }
   const variable = args[1].name
 
-  // evaluate start, end, and step
   const start = args[2].compile().evaluate(scope)
   const end = args[3].compile().evaluate(scope)
-  const step = args[4] && args[4].compile().evaluate(scope) // step is optional
+  const step = args[4] && args[4].compile().evaluate(scope)
 
-  // create a new scope, linked to the provided scope. We use this new scope
-  // to apply the variable.
   const fnScope = Object.create(scope)
 
-  // construct a function which evaluates the first parameter f after applying
-  // a value for parameter x.
   const fnCode = args[0].compile()
   const f = function (x) {
     fnScope[variable] = x
     return fnCode.evaluate(fnScope)
   }
 
-  // execute the integration
   return integrate(f, start, end, step)
 }
 
-// mark the transform function with a "rawArgs" property, so it will be called
-// with uncompiled, unevaluated arguments.
 integrate.transform.rawArgs = true
 
-// import the function into math.js. Raw functions must be imported in the
-// math namespace, they can't be used via `evaluate(scope)`.
 math.import({
   integrate: integrate
 })
+
+function isClose(a, b, rtol, atol) {
+  rtol = rtol || 1e-05
+  atol = atol || 1e-08
+  return math.abs(a - b) <= (atol + rtol * math.abs(b))
+}
+
+math.import({
+  isClose: isClose
+});
+
+function toDegrees(angle) {
+  return angle * (180 / Math.PI);
+}
+
+function toRadians(angle) {
+  return angle * (Math.PI / 180);
+}
+
+math.import({
+  toDegrees: toDegrees,
+  toRadians: toRadians
+});

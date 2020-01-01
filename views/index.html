@@ -21,23 +21,36 @@
 
 <body>
   <div id="points">
-    <h3>Waypoints</h4>
-      <table id="tbl-points">
-        <thead>
-          <th>#</th>
-          <th>x</th>
-          <th>y</th>
-        </thead>
-        <tbody>
-          <tr>
-            <td colspan="3">No set points</td>
-          </tr>
-        </tbody>
-      </table>
-      <button id="btn-add" onclick="pointAdd();">Add</button>
-      <button id="btn-remove" onclick="pointRemove();">Remove</button>
-      <br />
-      <button id="btn-generate" onclick="generateProfile();">Generate Profile</button>
+    <div class="row">
+      <div class="column">
+        <h3>Waypoints</h4>
+        <p>
+          <button id="btn-add" onclick="pointAdd();">Add</button>
+          <button id="btn-remove" onclick="pointRemove();">Remove</button>
+          <br />
+          <button id="btn-generate" onclick="exportProfile();">Export Profile</button>
+        </p>
+        <table id="tbl-points">
+          <thead>
+            <th>#</th>
+            <th>x</th>
+            <th>y</th>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="3">No set points</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="column">
+        <p>Wheel Radius: <div stlye="float: right;"><input id="input-radius" class="constant" onclick="this.focus()"> in</div></p>
+        <p>Max Veloctity: <div stlye="float: right;"><input id="input-velocity" class="constant" onclick="this.focus()" > ft/s</div></p>
+        <p>Max Acceleration: <div stlye="float: right;"><input id="input-acceleration" class="constant" onclick="this.focus()"> ft/s/s</div></p>
+        <p>Max Jerk: <div stlye="float: right;"><input id="input-jerk" class="constant" onclick="this.focus()">ft/s/s/s</div></p>
+        <button onclick="updateConstants();">Update</button>
+      </div>
+    </div>
   </div>
 </body>
 

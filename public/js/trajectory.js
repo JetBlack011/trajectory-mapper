@@ -7,6 +7,15 @@ class Point {
     }
 }
 
+class Vector {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.magnitude = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+        this.theta = math.toDegrees(atan2(y, x));
+    }
+}
+
 class Waypoint extends Point {
     constructor(i, x, y) {
         super(x, y);
@@ -20,6 +29,7 @@ class Waypoint extends Point {
     }
 
     draw() {
+        strokeWeight(1);
         stroke('black');
         fill('red');
         circle(this.x, this.y, this.radius * 2);
@@ -39,15 +49,19 @@ class Waypoint extends Point {
 
 class Curve {
     constructor(scale) {
-        this.s = t => {
-            return new Point(bezierPoint(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale,
-                             bezierPoint(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale);
-        };
-        this.d = t => {
+        this.s = t => new Point(bezierPoint(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale,
+                                bezierPoint(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale);
+        this.sDot = t => {
             // B'(t) = -3(1 - t)^2 * p0 + (3 - 12t + 9t^2) * p1 + (6t - 9t^2) * p2 + 3t^2 * p3
             let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale;
             let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale;
             return Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2));
+        }
+        this.d = t => {
+            // B'(t) = -3(1 - t)^2 * p0 + (3 - 12t + 9t^2) * p1 + (6t - 9t^2) * p2 + 3t^2 * p3
+            let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale;
+            let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale;
+            return new Vector(vx, vy);
         }
         this.dd = t => {
             let ax = (6 * (1 - t) * this.p0.x +
@@ -58,14 +72,14 @@ class Curve {
                      (18 * t - 12) * this.p1.y +
                      (6 - 18 * t) * this.p2.y +
                      6 * t * this.p3.y) * this.scale
-            return Math.sqrt(Math.pow(ax, 2), Math.pow(ay, 2));
+            return new Vector(ax, ay);
         }
         this.p0 = null;
         this.p1 = null;
         this.p2 = null;
         this.p3 = null;
         this.scale = scale;
-        this.fLength = t => math.integrate(this.d, 0, t);
+        this.fLength = t => math.integrate(this.sDot, 0, t);
     }
 
     update() {
@@ -105,6 +119,14 @@ class Trajectory {
         this.update();
     }
 
+    cumLength(i) {
+        let sum = 0;
+        for (let j = 0; j < i; ++j) {
+            sum += this.curves[j].curveLength;
+        }
+        return sum;
+    }
+
     update() {
         var mat, dx, dy, p1x, p1y, p2, p2x, p2y;
         var n = this.points.length - 1;
@@ -125,6 +147,7 @@ class Trajectory {
                 this.curves[0].p1 = new Point(p1x, p1y);
                 this.curves[0].p2 = new Point(p2x, p2y);
                 this.curves[0].p3 = this.points[1];
+                this.curves[0].update();
             } else if (n > 1) {
                 if (n == 2) {
                     mat = [
@@ -183,8 +206,8 @@ class Trajectory {
                     this.curves[i].update();
                 }
             }
+            this.length = this.curves.reduce((a, b) => a + b.curveLength, 0);
         }
-        this.length = this.curves.reduce((a, b) => a + b.curveLength, 0);
     }
 
     draw() {
@@ -199,36 +222,174 @@ class Trajectory {
 }
 
 class MotionProfile {
-    constructor(trajectory, vMax, aMax, jMax) {
+    constructor(trajectory, wheelRadius, vMax, aMax, jMax) {
+        this.scale = trajectory.scale;
         this.trajectory = trajectory;
-        this.jMax = jMax;
-        this.aMax = aMax;
-        this.vMax = vMax;
-        this._vMax = vMax;
+        this.wheelRadius = wheelRadius;
+        this.jMax = jMax * 12;
+        this.aMax = aMax * 12;
+        this.vMax = vMax * 12;
+        this._vMax = this.vMax;
         this.uiPrev = 0;
+        this._i = 0;
+        this.interval = 100;
+        this.show = false;
         this.update();
     }
 
-    velocityProfile() {
-        this.totalLength = this.trajectory.length;
+    timeTo(i) {
+        let sum = 0;
+        for (let j = 0; j < i; ++j) {
+            sum += this.t[j];
+        }
+        return sum;
+    }
+
+    distanceTo(i) {
+        let sum = 0;
+        for (let j = 0; j < i; ++j) {
+            sum += this.s[j];
+        }
+        return sum;
+    }
+
+    getInterpolationParameter(i, s, ui, tol) {
+        tol = tol || 0.1;
+        let f = u => this.trajectory.curves[i].fLength(u) - s;
+        let _f = u => this.trajectory.curves[i].sDot(u);
+
+        while ((ui >= 0 && ui <= 1) && Math.abs(f(ui)) > tol) {
+            ui -= f(ui) / _f(ui);
+        }
+        ui = max(0, min(ui, 1));
+        return ui;
+    }
+
+    calcTrajPoint(t) {
+        let segId;
+        let i = 0;
+        let s = 0;
+        let v = 0;
+        let a = 0;
+        if (t <= this.t[0]) {
+            segId = 0;
+            v = this.jMax * Math.pow(t, 2) / 2;
+            s = this.jMax * Math.pow(t, 3) / 6;
+            a = this.jMax * t;
+        } else if (t <= this.timeTo(2)) {
+            segId = 1;
+            let dt = t - this.t[0];
+            v = this.v[0] + this.aMax * dt;
+            s = this.s[0] + this.v[0] * dt + this.aMax * Math.pow(dt, 2) / 2;
+            a = this.aMax;
+        } else if (t <= this.timeTo(3)) {
+            segId = 2;
+            let dt = t - this.timeTo(2);
+            v = this.v[1] + this.aMax * dt - this.jMax * Math.pow(dt, 2) / 2;
+            s = this.distanceTo(2) + this.v[1] * dt + this.aMax * Math.pow(dt, 2) /
+                2 - this.jMax * Math.pow(dt, 3) / 6;
+        } else if (t <= this.timeTo(4)) {
+            segId = 3;
+            let dt = t - this.timeTo(3);
+            v = this.v[3];
+            s = this.distanceTo(3) + this.v[3] * dt;
+            a = 0;
+        } else if (t <= this.timeTo(5)) {
+            // TODO: Unironically fucked up atm
+            segId = 4;
+            let dt = t - this.timeTo(4);
+            v = this._vMax - this.jMax * Math.pow(dt, 2) / 2
+            s = this.distanceTo(4) + this._vMax * dt - this.jMax * Math.pow(dt, 3) / 6;
+            a = -this.jMax * dt;
+        } else if (t <= this.timeTo(6)) {
+            segId = 5;
+            let dt = t - this.timeTo(5);
+            v = this.v[4] - this.aMax * dt;
+            s = this.distanceTo(5) + this.v[4] * dt - this.aMax * Math.pow(dt, 2) / 2
+        } else if (t < this.timeTo(7)) {
+            segId = 6;
+            let dt = t - this.timeTo(6);
+            v = this.v[5] - this.aMax * dt + this.jMax * Math.pow(dt, 2) / 2;
+            s = this.distanceTo(6) + this.v[5] * dt - this.aMax * Math.pow(dt, 2) /
+                2 + this.jMax * Math.pow(dt, 3) / 6;
+            a = -this.aMax + this.jMax * dt;
+        } else {
+            segId = 7;
+            v = 0;
+            s = this.trajectory.length;
+            a = 0;
+        }
+
+        while (++i < this.trajectory.curves.length && s > this.trajectory.cumLength(i));
+        --i;
+        
+        let ui;
+        if (i == this.trajectory.curves.length) {
+            --i;
+            ui = 1;
+        } else {
+            ui = this.getInterpolationParameter(i, s - this.trajectory.cumLength(i), this.uiPrev);
+        }
+
+        this.uiPrev = i == this._i ? ui : 0;
+
+        this._i = i;
+        let pos = this.trajectory.curves[i].s(ui);
+        let d   = this.trajectory.curves[i].d(ui);
+        let dd  = this.trajectory.curves[i].dd(ui);
+        let su  = this.trajectory.curves[i].sDot(ui);
+        let omega;
+        if (!math.isClose(su, 0) && !math.isClose(v, 0)) {
+            let ut = v / su;
+            let utt = a / su - (d.x * dd.x + d.y * dd.y) / Math.pow(su, 2) * ut;
+            let xt = d.x * ut;
+            let yt = d.y * ut;
+            let xtt = dd.x * Math.pow(ut, 2) + d.x * utt;
+            let ytt = dd.y * Math.pow(ut, 2) + d.y * utt;
+            omega = (ytt * xt - xtt * yt) / Math.pow(v, 2);
+        } else {
+            omega = 0;
+        }
+        return {
+            segId: segId,
+            x: pos.x,
+            y: pos.y,
+            theta: math.toDegrees(atan2(d.y, d.x)),
+            v: v,
+            omega: omega
+        };
+    }
+
+    update(vMax, aMax, jMax) {
+        this.vMax = vMax * 12 || this.vMax;
+        this.aMax = aMax * 12 || this.aMax;
+        this.jMax = jMax * 12 || this.jMax;
+
+        let totalLength = this.trajectory.length;
+
         this._vMax = this.vMax;
 
-        let da = this.aMax;
-        let ts1 = da / this.jMax;
-        let vs1 = this.jMax * Math.pow(ts1, 2) / 2;
-        let ss1 = this.jMax * Math.pow(ts1, 3) / 6;
-        let tsf = this.aMax / this.jMax;
-        let vsf = this.jMax * Math.pow(tsf, 2) / 2;
-        let ssf = this.jMax * Math.pow(tsf, 3) / 6;
+        let ts = this.aMax / this.jMax;
+        let vs = this.jMax * Math.pow(ts, 2) / 2;
+        let ss = this.jMax * Math.pow(ts, 3) / 6;
+        /*
         let a = 1 / this.aMax;
-        let b = 3 * this.aMax / (2 * this.jMax) + vs1 / this.aMax -
-                (Math.pow(this.aMax, 2) / this.jMax + vs1) / this.aMax;
-        let c = ss1 + ssf - this.totalLength - 7 * Math.pow(this.aMax, 3) /
-                (3 * Math.pow(this.jMax, 2))- vs1 * (this.aMax / this.jMax +
-                vs1 / this.aMax) + Math.pow((Math.pow(this.aMax, 2) /
-                this.jMax + vs1 / this.aMax), 2) / (2. * this.aMax);
+        let b = 3 * this.aMax / (2 * this.jMax) + vs / this.aMax -
+                (Math.pow(this.aMax, 2) / this.jMax + vs) / this.aMax;
+        let c = 2 * ss - totalLength - 7 * Math.pow(this.aMax, 3) /
+                (3 * Math.pow(this.jMax, 2)) - vs * (this.aMax / this.jMax +
+                vs / this.aMax) + Math.pow((Math.pow(this.aMax, 2) /
+                this.jMax + vs / this.aMax), 2) / (2 * this.aMax);
         this._vMax = (-b + Math.sqrt(Math.pow(b, 2) - 4 * a * c)) / (2 * a);
+        */
 
+        this._vMax = Math.max((Math.sqrt(this.aMax * Math.pow(this.jMax, 2) *
+                     (4 * Math.pow(this.jMax, 2) * totalLength - 11 *
+                     Math.pow(this.aMax, 3))) + Math.pow(this.aMax, 2) *
+                     this.jMax) / (2 * Math.pow(this.jMax, 2)), (Math.pow(this.aMax, 2) *
+                     this.jMax - Math.sqrt(this.aMax * Math.pow(this.jMax, 2) *
+                     (4 * Math.pow(this.jMax, 2) * totalLength - 11 *
+                     Math.pow(this.aMax, 3)))) / (2 * Math.pow(this.jMax, 2))) - 10;
         if (this.vMax <= this._vMax) {
             this._vMax = this.vMax;
         }
@@ -237,33 +398,28 @@ class MotionProfile {
         this.v = Array(7);
         this.s = Array(7);
 
-        // Section 0: Maximum jerk, part 1
+        // Section 0: Maximal jerk, part 1
         let i = 0;
-        this.t[0] = ts1;
-        this.v[0] = vs1;
-        this.s[0] = ss1;
+        this.t[0] = ts;
+        this.v[0] = vs;
+        this.s[0] = ss;
 
-        // Section 1: Maximum acceleration
+        // Section 1: Maximal acceleration
         i = 1;
-        let dv = (this.vMax - this.jMax * Math.pow(this.aMax / this.jMax, 2) /
-                 2) - this.v[i - 1]
+        let dv = this._vMax - Math.pow(this.aMax, 2) / (this.jMax * 2) - this.v[i - 1];
         this.t[i] = dv / this.aMax;
         this.v[i] = this.v[i - 1] + this.aMax * this.t[i];
-        this.s[i] = this.v[i - 1] * this.t[i] + this.aMax *
-                    Math.pow(this.t[i], 2) / 2;
+        this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) / 2;
 
-        // Section 2: Minimum jerk, part 1
+        // Section 2: Minimal jerk, part 1
         i = 2;
         this.t[i] = this.aMax / this.jMax;
         this.v[i] = this.v[i - 1] + this.aMax * this.t[i] - this.jMax *
                     Math.pow(this.t[i], 2) / 2;
 
-        /*
-        if (Math.abs(this.v[i] - this._vMax) > (1e-05 + 1e-08 * Math.abs(this._vMax))) {
-            console.error("Max velocity not reached!");
-            return;
+        if (!math.isClose(this.v[i], this._vMax)) {
+            return console.error("Max velocity not reached!");
         }
-        */
 
         this.s[i] = this.v[i - 1] * this.t[i] + this.aMax * Math.pow(this.t[i], 2) /
                     2 - this.jMax * Math.pow(this.t[i], 3) / 6;
@@ -272,148 +428,78 @@ class MotionProfile {
         i = 3;
         this.s[i] = 0;
         this.t[i] = 0;
+        this.v[i] = 0;
 
-        // Section 4: Minimum jerk, part 2
+        // Section 4: Minimal jerk, part 2
         i = 4;
         this.t[i] = this.aMax / this.jMax;
-        this.v[i] = this.vMax - this.jMax * Math.pow(this.t[i], 2) / 2;
-        this.s[i] = this.vMax * this.t[i] - this.jMax * Math.pow(this.t[i], 3) / 6;
+        this.v[i] = this._vMax - this.jMax * Math.pow(this.t[i], 2) / 2;
+        this.s[i] = this._vMax * this.t[i] - this.jMax * Math.pow(this.t[i], 3) / 6;
 
-        // Section 5: Minimum acceleration
+        // Section 5: Minimal acceleration
         i = 5;
-        dv = this.v[i - 1] - vsf;
+        dv = this.v[i - 1] - vs;
         this.t[i] = dv / this.aMax;
         this.v[i] = this.v[i - 1] - this.aMax * this.t[i];
         this.s[i] = this.v[i - 1] * this.t[i] - this.aMax * Math.pow(this.t[i], 2) / 2;
 
-        // Section 6: Maximum jerk, part 2
+        // Section 6: Maximal jerk, part 2
         i = 6;
-        this.t[i] = tsf;
-        this.v[i] = this.v[i - 1] - this.jMax * Math.pow(tsf, 2) / 2;
+        this.t[i] = ts;
+        this.v[i] = this.v[i - 1] - this.jMax * Math.pow(ts, 2) / 2;
 
-        /*
-        if (Math.abs(this.v[i]) > 1e-05) {
-            console.error(`Final velocity ${this.v[i]} is not zero!`)
-            return;
+        if (!math.isClose(this.v[i], 0)) {
+            return console.error(`Final velocity ${this.v[i]} is not zero!`);
         }
-        */
 
-        this.s[i] = ssf;
-
-        let sSum = math.sum(this.s);
-        if (sSum < this.totalLength) {
-            i = 3;
-            this.s[i] = this.totalLength - sSum;
-            this.v[i] = this._vMax;
-            this.t[i] = this.s[i] / this._vMax;
-        }
+        this.s[i] = ss;
 
         for (let i = 0; i < this.t.length; ++i) {
             if (this.t[i] < 0) {
-                console.error("Kinematically impossible path!");
-                return;
+                return console.error("Kinematically impossible path!");
             }
+        }
+
+        let sSum = math.sum(this.s);
+        if (sSum < totalLength) {
+            i = 3;
+            this.s[i] = totalLength - sSum;
+            this.v[i] = this._vMax;
+            this.t[i] = this.s[i] / this._vMax;
         }
         
         this.totalTime = math.sum(this.t);
     }
 
-    getInterpolationParameter(i, s, ui, tol) {
-        tol = tol || 0.001;
-        function f(u) {
-            return this.trajectory.curves[i].fLength(u) - s;
+    export() {
+        let sl = 0;
+        let sr = 0;
+        let dt = .01;
+        let profile = [];
+        for (let t = 0; t <= this.totalTime; t += dt) {
+            let state = this.calcTrajPoint(t);
+            let vDiff = this.wheelRadius * state.omega;
+            let vl = state.v - vDiff;
+            let vr = state.v + vDiff;
+            sl += vl * dt;
+            sr += vr * dt;
+            profile.push(`${sl.toFixed(4)},${vl.toFixed(4)},${sr.toFixed(4)},${vr.toFixed(4)},${state.theta.toFixed(4)}`);
         }
-
-        function fprime(u) {
-            return this.trajectory.curves[i].d(u);
-        }
-
-        while ((ui >= 0 && ui <= 1) && Math.abs(f(ui)) > tol) {
-            ui -= f(ui) / fprime(ui);
-        }
-        ui = max(0, min(ui, 1));
-        return ui;
+        return profile;
     }
 
-    timeTo(i) {
-        return math.sum(this.t.slice(i));
-    }
-
-    distanceTo(i) {
-        return this.trajectory.curves.reduce((a, b) => a + b.curveLength, 0);
-    }
-
-    calcTrajPoint(t) {
-        let i;
-        let dt;
-        let s;
-        let v;
-        let a;
-        if (t <= this.t[0]) {
-            i = 0;
-            v = this.jMax * Math.pow(t, 2) / 2;
-            s = this.jMax * Math.pow(t, 3) / 6;
-            a = this.jMax * t;
-        } else if (t <= this.timeTo(2)) {
-            i = 1;
-            dt = t - this.t[0];
-            v = this.v[0] + this.aMax * dt;
-            s = this.s[0] + this.v[0] * dt + this.aMax * Math.pow(dt, 2) / 2;
-            a = this.aMax;
-        } else if (t <= this.timeTo(3)) {
-            i = 2;
-            dt = t - this.timeTo(2);
-            v = this.v[1] + this.aMax * dt - this.jMax * Math.pow(dt, 2) / 2;
-            s = this.timeTo(2) + this.v[1] * dt + this.aMax * Math.pow(dt, 2) /
-                2 - this.jMax * Math.pow(dt, 3) / 6;
-        } else if (t <= this.timeTo(4)) {
-            i = 3;
-            dt = t - this.timeTo(3);
-            v = this.v[3];
-            s = this.timeTo(3) + this.v[3] * dt;
-            a = 0;
-        } else if (t <= this.timeTo(5)) {
-            i = 4;
-            dt = t - this.timeTo(4);
-            v = this.v[3] - this.jMax * Math.pow(dt, 2) / 2;
-            s = this.timeTo(4) + this.v[3] * dt - this.jMax * dt;
-            a = -this.jMax * dt;
-        } else if (t <= this.timeTo(6)) {
-            i = 5;
-            dt = t - this.timeTo(5);
-            v = this.v[4] - this.aMax * dt;
-            s = this.timeTo(5) + this.v[4] * dt - this.aMax * Math.pow(dt, 2) / 2
-        } else if (time < this.timeTo(7)) {
-            i = 6;
-            dt = t - this.timeTo(6);
-            v = this.v[5] - this.aMax * dt + this.jMax * Math.pow(dt, 2) / 2;
-            s = this.timeTo(6) + this.v[5] * dt - this.aMax * Math.pow(dt, 2) /
-                2 + this.jMax * Math.pow(dt, 3) / 6;
-            a = -this.aMax + this.jMax * dt;
-        } else {
-            i = 7;
-            v = 0;
-            s = this.trajectory.length;
-            a = 0;
+    draw() {
+        if (this.show) {
+        noStroke();
+            for (let t = 0; t <= this.totalTime; t += this.totalTime / this.interval) {
+                if (t == this.totalTime) {
+                    t -= .001;
+                }
+                let state = this.calcTrajPoint(t);
+                //fill(Math.abs(state.omega) / .3 * 255, 0, 0);
+                fill(state.v / this._vMax * 255, 0, 0);
+                circle(state.x / this.scale, state.y / this.scale, 10);
+            }
         }
-        
-        /*
-        let ui;
-        if (i == this.trajectory.curves.length) {
-            --i;
-            ui = 1;
-        } else {
-            ui = this.getInterpolationParameter(i, this.distanceTo(i), this.uiPrev)
-        }
-
-        let iprime = i;
-        let d = this.trajectory.curves[i].d(ui);
-        let dd = this.trajectory.curves[i].d(ui);
-        let su = 
-        */
-    }
-    
-    update() {
-        this.velocityProfile();
     }
 }
