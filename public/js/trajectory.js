@@ -296,7 +296,6 @@ class MotionProfile {
             s = this.distanceTo(3) + this.v[3] * dt;
             a = 0;
         } else if (t <= this.timeTo(5)) {
-            // TODO: Unironically fucked up atm
             segId = 4;
             let dt = t - this.timeTo(4);
             v = this._vMax - this.jMax * Math.pow(dt, 2) / 2
