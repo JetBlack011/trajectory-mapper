@@ -33,13 +33,15 @@ class Waypoint extends Point {
         stroke('black');
         fill('red');
         circle(this.x, this.y, this.radius * 2);
-        noStroke();
+        stroke('white');
+        strokeWeight(.5);
         fill('black');
         textSize(15);
         text('K', this.x + 10, this.y + 10);
         textSize(10);
         text(this.i, this.x + 20, this.y + 15);
         if (this.active) {
+            strokeWeight(1);
             stroke('red');
             noFill();
             rect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
@@ -49,29 +51,29 @@ class Waypoint extends Point {
 
 class Curve {
     constructor(scale) {
-        this.s = t => new Point(bezierPoint(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale,
-                                bezierPoint(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale);
+        this.s = t => new Point(bezierPoint(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) / this.scale,
+                                bezierPoint(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) / this.scale);
         this.sDot = t => {
             // B'(t) = -3(1 - t)^2 * p0 + (3 - 12t + 9t^2) * p1 + (6t - 9t^2) * p2 + 3t^2 * p3
-            let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale;
-            let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale;
+            let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) / this.scale;
+            let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) / this.scale;
             return Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2));
         }
         this.d = t => {
             // B'(t) = -3(1 - t)^2 * p0 + (3 - 12t + 9t^2) * p1 + (6t - 9t^2) * p2 + 3t^2 * p3
-            let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) * this.scale;
-            let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) * this.scale;
+            let vx = bezierTangent(this.p0.x, this.p1.x, this.p2.x, this.p3.x, t) / this.scale;
+            let vy = bezierTangent(this.p0.y, this.p1.y, this.p2.y, this.p3.y, t) / this.scale;
             return new Vector(vx, vy);
         }
         this.dd = t => {
             let ax = (6 * (1 - t) * this.p0.x +
                      (18 * t - 12) * this.p1.x +
                      (6 - 18 * t) * this.p2.x +
-                     6 * t * this.p3.x) * this.scale;
+                     6 * t * this.p3.x) / this.scale;
             let ay = (6 * (1 - t) * this.p0.y +
                      (18 * t - 12) * this.p1.y +
                      (6 - 18 * t) * this.p2.y +
-                     6 * t * this.p3.y) * this.scale
+                     6 * t * this.p3.y) / this.scale
             return new Vector(ax, ay);
         }
         this.p0 = null;
@@ -513,7 +515,7 @@ class MotionProfile {
                 } else {
                     fill(state.v / this._vMax * 255, 0, 0);
                 }
-                circle(state.x / this.scale, state.y / this.scale, 10);
+                circle(state.x * this.scale, state.y * this.scale, 10);
             }
         }
     }

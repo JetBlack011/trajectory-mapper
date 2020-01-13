@@ -1,4 +1,5 @@
 var express = require('express'),
+    path = require('path'),
     bodyParser = require('body-parser'),
     app = express()
 
@@ -7,6 +8,7 @@ const port = 8000
 // Configure rendering middleware
 app.engine('html', require('ejs').renderFile)
 app.set('view engine', 'html')
+app.set('views', path.join(__dirname, '/views'));
 
 // Configure request logging
 app.use(require('morgan')('dev'))

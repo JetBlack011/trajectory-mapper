@@ -1,31 +1,46 @@
 /* eslint-disable no-redeclare */
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-undef */
-var bg, fieldScale = .5,
-    screenHeight   = 1298,
-    screenWidth    = 638,
-    lastActive     = null,
-    active         = false,
-    pointRadius    = 5
+const fieldWidth  = 689.61,
+      fieldHeight = 360,
+      screenScale = 0.6;
 
-var wheelRadius     = 12.75;
+var fieldImage, cnv,
+    screenWidth  = window.innerWidth * screenScale,
+    fieldScale   = screenWidth / fieldWidth,
+    screenHeight = fieldHeight * fieldScale,
+    lastActive   = null,
+    active       = false,
+    pointRadius  = 5;
+
+var wheelRadius     = 12.75,
     maxVelocity     = 78.7402 / 12,
     maxAcceleration = 30 / 12,
     maxJerk         = 39.3701 / 12;
 
-var trajectory,
-    profile;
+var trajectory, profile;
 
 var inputWheelRadius,
     inputMaxVelocity,
     inputMaxAcceleration,
     inputMaxJerk;
 
+function resizeWindow() {
+    screenWidth  = window.innerWidth * screenScale;
+    fieldScale   = screenWidth / fieldWidth;
+    screenHeight = fieldHeight * fieldScale;
+
+    resizeCanvas(screenWidth, screenHeight);
+}
+
+window.addEventListener("resize", resizeWindow);
+
 /* p5 Functions */
 function setup() {
     // Canvas setup
-    createCanvas(screenHeight, screenWidth);
-    bg = loadImage('public/assets/field1298x638.jpeg');
+    cnv = createCanvas(screenWidth, screenHeight);
+    fieldImage = loadImage('public/assets/Infinite Recharge 2069x1080.png');
+    //cnv.position(160, 0);
 
     // DOM setup
     let divPoint = document.getElementById('points');
@@ -48,7 +63,7 @@ function setup() {
 }
 
 function draw() {
-    background(bg);
+    background(fieldImage);
     trajectory.draw();
     profile.draw();
 }
@@ -143,8 +158,8 @@ function tableUpdate() {
         for (let i = 0; i < trajectory.points.length; ++i) {
             tr = tbody.rows[i];
             tr.cells[0].innerHTML = i;
-            tr.cells[1].firstChild.value = trajectory.points[i].x * fieldScale;
-            tr.cells[2].firstChild.value = trajectory.points[i].y * fieldScale;
+            tr.cells[1].firstChild.value = (trajectory.points[i].x / fieldScale).toFixed(2);
+            tr.cells[2].firstChild.value = (trajectory.points[i].y / fieldScale).toFixed(2);
         }
     } else {
         while (tbody.hasChildNodes()) {
@@ -179,15 +194,16 @@ function tableSync() {
         tr = tbody.rows[r];
         waypoint = trajectory.points[r];
 
-        waypoint.x = parseInt(tr.cells[1].firstChild.value) / fieldScale;
-        waypoint.y = parseInt(tr.cells[2].firstChild.value) / fieldScale;
+        waypoint.x = parseInt(tr.cells[1].firstChild.value) * fieldScale;
+        waypoint.y = parseInt(tr.cells[2].firstChild.value) * fieldScale;
     }
-    update();
+    trajectory.update();
+    profile.update();
 }
 
 /* Trajectory Manipulation Functions */
 function pointAdd() {
-    trajectory.add(screenHeight / 2, screenWidth / 2);
+    trajectory.add(screenWidth / 2, screenHeight / 2);
     update();
 }
 
@@ -206,7 +222,7 @@ function download(filename, text) {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-  }
+}
 
 function exportProfile() {
     let csv = profile.export().join('\n');
