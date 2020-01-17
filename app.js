@@ -18,9 +18,6 @@ app.use(bodyParser.json())
 // Serve static assets
 app.use('/public', express.static(__dirname + '/public'))
 
-// Configure database middleware
-require('./db')
-
 // Configure routing
 app.use(require('./routes'))
 
