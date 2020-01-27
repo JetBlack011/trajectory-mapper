@@ -226,5 +226,5 @@ function download(filename, text) {
 
 function exportProfile() {
     let csv = profile.export().join('\n');
-    download('profile.txt', csv);
+    download('profile.csv', csv);
 }
